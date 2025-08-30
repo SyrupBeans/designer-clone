@@ -11,7 +11,9 @@ use std::{
 
 #[cfg(feature = "trace_clone")]
 mod event {
-    struct Event<T, R = ()> {
+    use super::*;
+    
+    pub(crate) struct Event<T, R = ()> {
         callback: Rc<RefCell<dyn FnMut(&mut T) -> R>>,
     }
 
@@ -30,13 +32,13 @@ mod event {
     }
 
     impl<T, R> Event<T, R> {
-        fn new(callback: impl (for<'a> FnMut(&'a mut T) -> R) + 'static) -> Self {
+        pub(crate) fn new(callback: impl (for<'a> FnMut(&'a mut T) -> R) + 'static) -> Self {
             Self {
                 callback: Rc::new(RefCell::new(callback)),
             }
         }
 
-        fn fire(&self, arg: &mut T) -> R {
+        pub(crate) fn fire(&self, arg: &mut T) -> R {
             self.callback.borrow_mut()(arg)
         }
     }
@@ -69,6 +71,12 @@ impl<T> Deref for Tr<T> {
 impl<T> DerefMut for Tr<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.value
+    }
+}
+
+impl<T> From<T> for Tr<T> {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 
@@ -157,6 +165,10 @@ impl<T> Tr<T> {
         this
     }
 
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+    
     #[cfg(feature = "trace_clone")]
     pub fn suspend(this: &Self) {
         this.suspended.set(true);

@@ -215,6 +215,15 @@ impl<T: Clone> Clone for Tr<T> {
     }
 }
 
+impl<T:Clone> Tr<T> {
+    pub fn clone_silent(&self) -> Self {
+        Self::suspend(self);
+        let clone = self.clone();
+        Self::resume(self);
+        clone
+    }
+}
+
 pub struct Tag<T, V> {
     pub value: V,
     pub tag: T,

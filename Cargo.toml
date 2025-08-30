@@ -6,5 +6,5 @@ edition = "2024"
 [dependencies]
 
 [features]
-default = []
+default = ["trace_clone"]
 trace_clone = []

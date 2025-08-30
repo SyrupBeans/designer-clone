@@ -12,7 +12,7 @@ use std::{
 #[cfg(feature = "trace_clone")]
 mod event {
     use super::*;
-    
+
     pub(crate) struct Event<T, R = ()> {
         callback: Rc<RefCell<dyn FnMut(&mut T) -> R>>,
     }
@@ -168,7 +168,7 @@ impl<T> Tr<T> {
     pub fn into_inner(self) -> T {
         self.value
     }
-    
+
     #[cfg(feature = "trace_clone")]
     pub fn suspend(this: &Self) {
         this.suspended.set(true);
@@ -215,11 +215,20 @@ impl<T: Clone> Clone for Tr<T> {
     }
 }
 
-impl<T:Clone> Tr<T> {
-    pub fn clone_silent(&self) -> Self {
+pub trait CloneSilent: Clone {
+    fn clone_silent(&self) -> Self;
+}
+
+impl<T: Clone> CloneSilent for Tr<T> {
+    fn clone_silent(&self) -> Self {
+        #[cfg(feature = "trace_clone")]
         Self::suspend(self);
+
         let clone = self.clone();
+
+        #[cfg(feature = "trace_clone")]
         Self::resume(self);
+        
         clone
     }
 }

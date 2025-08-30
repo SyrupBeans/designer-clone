@@ -9,35 +9,41 @@ use std::{
     rc::Rc,
 };
 
-struct Event<T, R = ()> {
-    callback: Rc<RefCell<dyn FnMut(&mut T) -> R>>,
-}
-
-impl<T, R> Debug for Event<T, R> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Event({:p})", self.callback.as_ref() as *const _)
+#[cfg(feature = "trace_clone")]
+mod event {
+    struct Event<T, R = ()> {
+        callback: Rc<RefCell<dyn FnMut(&mut T) -> R>>,
     }
-}
 
-impl<T, R> Clone for Event<T, R> {
-    fn clone(&self) -> Self {
-        Self {
-            callback: Rc::clone(&self.callback),
+    impl<T, R> Debug for Event<T, R> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Event({:p})", self.callback.as_ref() as *const _)
+        }
+    }
+
+    impl<T, R> Clone for Event<T, R> {
+        fn clone(&self) -> Self {
+            Self {
+                callback: Rc::clone(&self.callback),
+            }
+        }
+    }
+
+    impl<T, R> Event<T, R> {
+        fn new(callback: impl (for<'a> FnMut(&'a mut T) -> R) + 'static) -> Self {
+            Self {
+                callback: Rc::new(RefCell::new(callback)),
+            }
+        }
+
+        fn fire(&self, arg: &mut T) -> R {
+            self.callback.borrow_mut()(arg)
         }
     }
 }
 
-impl<T, R> Event<T, R> {
-    fn new(callback: impl (for<'a> FnMut(&'a mut T) -> R) + 'static) -> Self {
-        Self {
-            callback: Rc::new(RefCell::new(callback)),
-        }
-    }
-
-    fn fire(&self, arg: &mut T) -> R {
-        self.callback.borrow_mut()(arg)
-    }
-}
+#[cfg(feature = "trace_clone")]
+use event::*;
 
 pub struct Tr<T> {
     value: T,
@@ -172,14 +178,15 @@ impl<T: Clone> Traced for T {}
 
 impl<T: Clone> Clone for Tr<T> {
     fn clone(&self) -> Self {
-        let mut value = self.value.clone();
         #[cfg(not(feature = "trace_clone"))]
         {
+            let value = self.value.clone();
             Self { value }
         }
 
         #[cfg(feature = "trace_clone")]
         {
+            let mut value = self.value.clone();
             let sus = self.on_cloning.fire(&mut value) || self.suspended.get();
             self.on_cloned.fire(&mut value);
             if !sus {
